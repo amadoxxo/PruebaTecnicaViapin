@@ -6,8 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\UserNotification;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
+use App\Events\UserNotificationCreated;
 
-class NotificationController extends Controller
+class UserNotificationController extends Controller
 {
     public function index(Request $request): JsonResponse {
         $user = $request->user();
@@ -29,6 +30,8 @@ class NotificationController extends Controller
             'read'    => false,
         ]);
 
+        broadcast(new UserNotificationCreated($notification))->toOthers();
+
         return response()->json($notification, 201);
     }
 
@@ -36,7 +39,7 @@ class NotificationController extends Controller
         $user = $request->user();
 
         // Marcar todas las notificaciones del usuario como leídas
-        $notification = $user->userNotifications()
+        $notification = $user->userNotification()
                     ->where('read', false)
                     ->update(['read' => true]);
 
