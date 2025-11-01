@@ -4,6 +4,7 @@ import { BehaviorSubject, Observable, interval } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 import { Notification } from '../models/notification.model';
 import Echo from 'laravel-echo';
+import { AuthService } from './auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -13,51 +14,59 @@ export class NotificationService {
   private notificationsSubject = new BehaviorSubject<Notification[]>([]);
   notifications$ = this.notificationsSubject.asObservable();
 
-  private echo: Echo<any>;
+  private echo: Echo<any> | null = null;
+  private initialized = false;
 
-  constructor(private http: HttpClient) {
-  // Usar el cliente Pusher proporcionado globalmente por el script (window.Pusher)
-  // Evita errores de tipado con los paquetes ESM/UMD de pusher-js
-  const PusherAny = (window as any).Pusher;
-  const pusherClient = new PusherAny('local', {
-    wsHost: window.location.hostname,
-    wsPort: 8080,
-    wssPort: 8080,
-    forceTLS: false,
-    enabledTransports: ['ws', 'wss'],
-    disableStats: true,
-    // Añadimos cluster para satisfacer la validación del cliente Pusher
-    cluster: 'mt1'
-  });
+  constructor(private http: HttpClient, private authService: AuthService) {
+    // Esperar a que exista token antes de inicializar Echo y las peticiones protegidas
+    this.authService.token$.subscribe(token => {
+      if (token && !this.initialized) {
+        this.initialized = true;
 
-    // Configurar Laravel Echo con Reverb
-  this.echo = new Echo({
-    broadcaster: 'pusher',
-    key: 'local',
-    cluster: 'mt1',
-    wsHost: window.location.hostname,
-    wsPort: 8080,
-    wssPort: 8080,
-    forceTLS: false,
-    encrypted: false,
-    disableStats: true,
-    client: pusherClient
-  });
+        // Usar el cliente Pusher proporcionado globalmente por el script (window.Pusher)
+        const PusherAny = (window as any).Pusher;
+        const pusherClient = new PusherAny('local', {
+          wsHost: window.location.hostname,
+          wsPort: 8080,
+          wssPort: 8080,
+          forceTLS: false,
+          enabledTransports: ['ws', 'wss'],
+          disableStats: true,
+          cluster: 'mt1'
+        });
 
-    // Escuchar notificaciones en tiempo real
-    this.listenToNotifications();
+        // Configurar Laravel Echo con Pusher (apunta al servidor Reverb local)
+        this.echo = new Echo({
+          broadcaster: 'pusher',
+          key: 'local',
+          cluster: 'mt1',
+          wsHost: window.location.hostname,
+          wsPort: 8080,
+          wssPort: 8080,
+          forceTLS: false,
+          encrypted: false,
+          disableStats: true,
+          client: pusherClient
+        });
 
-    // Refrescar notificaciones cada 30 segundos
-    interval(30000).pipe(
-      switchMap(() => this.fetchNotifications())
-    ).subscribe();
+        // Escuchar notificaciones en tiempo real
+        this.listenToNotifications();
 
-    // Cargar notificaciones iniciales
-    this.fetchNotifications().subscribe();
+        // Cargar notificaciones iniciales
+        this.fetchNotifications().subscribe();
+
+        // Refrescar notificaciones cada 30 segundos
+        interval(30000).pipe(
+          switchMap(() => this.fetchNotifications())
+        ).subscribe();
+      }
+    });
   }
 
   private listenToNotifications(): void {
     const userId = 1; // Esto debería venir del servicio de autenticación
+    if (!this.echo) return;
+
     this.echo.channel(`notifications.${userId}`)
       .listen('.userNotification.created', (event: { notification: Notification }) => {
         console.log('Nueva notificación recibida:', event);

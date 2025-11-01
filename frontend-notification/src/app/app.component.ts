@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { NotificationBellComponent } from './components/notification-bell/notification-bell.component';
+import { LoginComponent } from './components/login/login.component';
 import { HttpClientModule } from '@angular/common/http';
 
 @Component({
@@ -12,6 +13,7 @@ import { HttpClientModule } from '@angular/common/http';
     CommonModule,
     MatToolbarModule,
     NotificationBellComponent,
+    LoginComponent,
     HttpClientModule
   ],
   template: `
@@ -23,8 +25,7 @@ import { HttpClientModule } from '@angular/common/http';
       </mat-toolbar>
 
       <div class="content">
-        <h1>Bienvenido</h1>
-        <p>Sistema de notificaciones</p>
+        <app-login></app-login>
       </div>
     </div>
   `,
